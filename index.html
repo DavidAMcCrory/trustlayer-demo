@@ -583,7 +583,7 @@
       const result = await agentLoop(q);
       typing.remove();
       appendMsg('assistant', result.text || result);
-      if (result.trace) { _decisionTrace = result.trace; renderDecisionTrace(_decisionTrace); }
+      if (result.trace) { _decisionTrace = result.trace; }
     } catch(err) { typing.remove(); appendMsg('assistant', `Error: ${err.message}`); }
     _isLoading = false; setInput(true);
   };
