@@ -1,4 +1,4 @@
-// tools.js — TrustLayer Third-Party Risk Management
+// tools.js — Govagentic Third-Party Risk Management
 // Controlled tool layer for AI-assisted vendor risk assessment.
 // Agent never accesses vendors.json directly.
 // Every call is logged to an immutable audit trail.
@@ -375,10 +375,11 @@ export async function generate_risk_summary(vendorId) {
     return { error: "Vendor not found", vendor_id: vendorId };
   }
 
-  // Collect all flags across all documents
-  const soc2 = await get_soc2_findings(vendorId);
-  const questionnaire = await get_security_questionnaire(vendorId);
-  const contract = await get_contract_review(vendorId);
+  // Collect all flags by reading directly from vendor data — NOT by calling
+  // the exported tool functions, which would double-log to the audit trail.
+  const soc2 = await _get_soc2_flags(vendor);
+  const questionnaire = await _get_questionnaire_flags(vendor);
+  const contract = await _get_contract_flags(vendor);
 
   const allFlags = [
     ...soc2.policy_flags || [],
@@ -448,6 +449,61 @@ function monthsAgo(dateString) {
   return Math.floor((today - d) / (1000 * 60 * 60 * 24 * 30.44));
 }
 
+// ── INTERNAL FLAG HELPERS (no audit logging) ──────────
+// These compute the same flags as the exported tool functions
+// but do NOT log to the audit trail. Used only by generate_risk_summary
+// to avoid double-counting entries.
+
+function _get_soc2_flags(vendor) {
+  const s = vendor.soc2;
+  const ageMonths = monthsAgo(s.report_date);
+  const penTestAgeMonths = monthsAgo(s.penetration_test_date);
+  const flags = [];
+
+  if (s.type === "Type I") flags.push({ severity: "HIGH", control: "SOC 2 Report Type", finding: "Type I report only — point-in-time assessment, not continuous. Type II required for Tier 1/2 vendors per policy.", policy_ref: "TPRM-POL-003" });
+  if (ageMonths > 12) flags.push({ severity: "HIGH", control: "Report Currency", finding: `SOC 2 report is ${ageMonths} months old — exceeds 12-month maximum per policy.`, policy_ref: "TPRM-POL-003" });
+  if (s.encryption_at_rest === "AES-128") flags.push({ severity: "HIGH", control: "Encryption Standard", finding: "AES-128 encryption at rest does not meet AES-256 minimum standard required for Confidential/Restricted data.", policy_ref: "SEC-POL-011" });
+  if (!s.mfa_required) flags.push({ severity: "HIGH", control: "Multi-Factor Authentication", finding: "MFA not enforced — required for all Tier 1 vendors processing Confidential or Restricted data.", policy_ref: "SEC-POL-007" });
+  if (s.encryption_in_transit === "TLS 1.2") flags.push({ severity: "MEDIUM", control: "TLS Version", finding: "TLS 1.2 in use — TLS 1.3 strongly preferred. Schedule upgrade plan.", policy_ref: "SEC-POL-011" });
+  if (penTestAgeMonths > 12) flags.push({ severity: penTestAgeMonths > 18 ? "HIGH" : "MEDIUM", control: "Penetration Testing", finding: `Penetration test is ${penTestAgeMonths} months old — ${penTestAgeMonths > 18 ? "critically overdue" : "approaching"} the 12-month refresh requirement.`, policy_ref: "TPRM-POL-005" });
+  if (s.subprocessors && s.subprocessors.length > 8) flags.push({ severity: "MEDIUM", control: "Subprocessor Concentration", finding: `${s.subprocessors.length} subprocessors identified — elevated supply chain risk. Confirm each has been assessed.`, policy_ref: "TPRM-POL-008" });
+
+  return { policy_flags: flags, exception_count: s.exceptions.length, report_age_months: ageMonths, penetration_test_age_months: penTestAgeMonths };
+}
+
+function _get_questionnaire_flags(vendor) {
+  const q = vendor.security_questionnaire;
+  const flags = [];
+
+  if (!q.incident_response_plan) flags.push({ severity: "HIGH", area: "Incident Response", finding: "No incident response plan documented — required for all vendors.", policy_ref: "TPRM-POL-006" });
+  if (!q.osfi_b10_acknowledged) flags.push({ severity: "HIGH", area: "Regulatory Acknowledgment", finding: "Vendor has not acknowledged OSFI B-10 third-party risk expectations — required for regulated entity vendors.", policy_ref: "TPRM-POL-001" });
+  if (q.background_checks !== "All employees and contractors") flags.push({ severity: "MEDIUM", area: "Personnel Security", finding: `Background checks scoped to "${q.background_checks}" only — policy requires all employees and contractors.`, policy_ref: "HR-POL-003" });
+  if (q.last_incident) { const incidentAge = monthsAgo(q.last_incident); if (incidentAge < 24) flags.push({ severity: "MEDIUM", area: "Incident History", finding: `Security incident recorded ${incidentAge} months ago: ${q.last_incident}. Root cause and remediation should be confirmed.`, policy_ref: "TPRM-POL-006" }); }
+  const bcAge = monthsAgo(q.business_continuity_tested);
+  if (bcAge > 12) flags.push({ severity: "MEDIUM", area: "Business Continuity", finding: `Business continuity plan last tested ${bcAge} months ago — annual testing required.`, policy_ref: "TPRM-POL-009" });
+  if (q.patch_management_sla && q.patch_management_sla.includes("Critical: 30")) flags.push({ severity: "MEDIUM", area: "Patch Management", finding: "Critical patch SLA is 30 days — policy requires critical patches within 14 days for Tier 1 vendors.", policy_ref: "SEC-POL-012" });
+
+  return { policy_flags: flags, osfi_b10_acknowledged: q.osfi_b10_acknowledged };
+}
+
+function _get_contract_flags(vendor) {
+  const c = vendor.contract;
+  const flags = [...(c.key_concerns || []).map(concern => ({ severity: concern.includes("EXPIRED") || concern.includes("No right to audit") ? "CRITICAL" : "HIGH", area: "Contract Terms", finding: concern, policy_ref: "TPRM-POL-002" }))];
+
+  if (!c.right_to_audit) flags.push({ severity: "CRITICAL", area: "Audit Rights", finding: "No right to audit — cannot independently verify controls. Required for all Tier 1/2 vendors.", policy_ref: "TPRM-POL-002" });
+  if (!c.data_residency_clause && vendor.data_residency.includes("US")) flags.push({ severity: "HIGH", area: "Data Residency", finding: "No data residency clause — data may be processed or stored outside Canada without notification.", policy_ref: "PRIV-POL-004" });
+
+  const expiry = new Date(c.expiry_date);
+  const today = new Date();
+  const isExpired = expiry < today;
+  const daysUntilExpiry = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
+
+  if (isExpired) flags.push({ severity: "CRITICAL", area: "Contract Status", finding: `Contract expired on ${c.expiry_date} — currently operating without valid agreement.`, policy_ref: "TPRM-POL-002" });
+  else if (daysUntilExpiry < 90) flags.push({ severity: "HIGH", area: "Contract Renewal", finding: `Contract expires in ${daysUntilExpiry} days (${c.expiry_date}) — renewal process must begin immediately.`, policy_ref: "TPRM-POL-002" });
+
+  return { policy_flags: flags, right_to_audit: c.right_to_audit, contract_status: isExpired ? "EXPIRED" : daysUntilExpiry < 90 ? "EXPIRING_SOON" : "ACTIVE" };
+}
+
 // ── TOOL DEFINITIONS FOR CLAUDE API ──────────────────
 export const TOOL_DEFINITIONS = [
   {
@@ -507,7 +563,7 @@ export const TOOL_DEFINITIONS = [
   }
 ];
 
-export const SYSTEM_PROMPT = `You are a controlled AI assistant demonstrating TrustLayer — a governance framework for AI-assisted third-party risk management in regulated financial services.
+export const SYSTEM_PROMPT = `You are a controlled AI assistant demonstrating Govagentic — a governance framework for AI-assisted third-party risk management in regulated financial services.
 
 Your role is to help risk analysts assess vendor risk posture by retrieving and explaining structured findings from controlled tools.
 
