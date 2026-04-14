@@ -561,6 +561,41 @@ export const POLICY_REGISTRY = [
     status: "active"
   },
   {
+    id: "TPRM-POL-008", name: "Subprocessor Concentration Risk",
+    version: "v2026.01", control_id: "CTRL-SC-001", category: "Supply Chain Risk",
+    regulatory_mapping: ["OSFI B-10", "SR 13-19"],
+    description: "Vendors with more than 8 active subprocessors present elevated supply chain risk. Each subprocessor must be independently assessed and approved.",
+    status: "active"
+  },
+  {
+    id: "TPRM-POL-009", name: "Business Continuity Testing",
+    version: "v2026.01", control_id: "CTRL-OPS-002", category: "Operational Resilience",
+    regulatory_mapping: ["OSFI B-10", "NIST CSF"],
+    description: "All vendors must test their business continuity plan at least annually. Evidence of testing must be available on request.",
+    status: "active"
+  },
+  {
+    id: "HR-POL-003", name: "Personnel Security — Background Checks",
+    version: "v2026.01", control_id: "CTRL-HR-001", category: "Personnel Security",
+    regulatory_mapping: ["OSFI B-10", "ISO 27001"],
+    description: "Background screening must cover all employees and contractors with access to organizational data, without geographic limitation.",
+    status: "active"
+  },
+  {
+    id: "SEC-POL-012", name: "Patch Management SLA",
+    version: "v2026.01", control_id: "CTRL-SEC-003", category: "Security Assurance",
+    regulatory_mapping: ["NIST CSF", "ISO 27001"],
+    description: "Critical vulnerabilities must be patched within 14 days for all Tier 1 vendors. High severity vulnerabilities must be patched within 30 days.",
+    status: "active"
+  },
+  {
+    id: "PRIV-POL-004", name: "Data Residency Requirements",
+    version: "v2026.01", control_id: "CTRL-PRIV-001", category: "Data Privacy & Residency",
+    regulatory_mapping: ["OSFI B-10", "PIPEDA"],
+    description: "Vendor contracts must include an explicit data residency clause where organizational data is processed or stored outside Canada. Data transfers without contractual controls are prohibited.",
+    status: "active"
+  },
+  {
     id: "SCOPE-001", name: "Vendor Scope Restriction",
     version: "v2026.01", control_id: "CTRL-DATA-001", category: "Data Access Control",
     regulatory_mapping: ["OSFI B-10"],
