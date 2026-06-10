@@ -49,6 +49,9 @@
     .vendor-card:hover { border-color: var(--border); }
     .vendor-card.selected { border-color: var(--teal); background: var(--teal-bg); }
     .demo-coachmark-target { position: relative; z-index: 3; box-shadow: 0 0 0 3px rgba(201,168,76,0.34), 0 10px 26px rgba(15,25,35,0.18); }
+    .demo-coachmark-target button,
+    .demo-coachmark-target textarea,
+    .demo-coachmark-target input { position: relative; z-index: 4; }
     .vendor-name { font-family: 'Playfair Display', serif; font-size: 0.85rem; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
     .vendor-id { font-family: 'IBM Plex Mono', monospace; font-size: 0.55rem; color: var(--mist); margin-bottom: 5px; }
     .vendor-meta { font-size: 0.7rem; color: var(--slate); line-height: 1.45; margin-bottom: 6px; }
@@ -287,26 +290,35 @@
     #demoBtnStart:disabled { opacity: 0.7; }
 
     /* ── TOPBAR POLICY INDICATOR ── */
+    .coachmark-ring {
+      position: fixed;
+      z-index: 9996;
+      border: 2px solid var(--gold-light);
+      border-radius: 10px;
+      box-shadow: 0 0 0 4px rgba(201,168,76,0.18), 0 18px 48px rgba(15,25,35,0.22);
+      pointer-events: none;
+      transition: top 0.18s ease, left 0.18s ease, width 0.18s ease, height 0.18s ease;
+    }
     .coachmark {
       position: fixed;
       z-index: 9999;
-      width: min(360px, calc(100vw - 28px));
-      padding: 14px 16px;
+      width: min(340px, calc(100vw - 28px));
+      padding: 14px;
       border-radius: 8px;
-      background: #fff7df;
+      background: var(--ink);
       border: 2px solid var(--gold-light);
       box-shadow: 0 18px 48px rgba(15,25,35,0.32);
-      color: #0f1923;
-      font-size: 0.86rem;
-      line-height: 1.5;
-      pointer-events: none;
+      color: #f4f1eb;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      pointer-events: auto;
     }
     .coachmark::before {
       content: '';
       position: absolute;
       width: 12px;
       height: 12px;
-      background: #fff7df;
+      background: var(--ink);
       border-left: 2px solid var(--gold-light);
       border-top: 2px solid var(--gold-light);
       transform: rotate(45deg);
@@ -323,10 +335,51 @@
       font-size: 0.52rem;
       letter-spacing: 0.16em;
       text-transform: uppercase;
-      color: var(--red);
+      color: var(--gold-light);
       font-weight: 600;
     }
-    .coachmark-text { display: block; }
+    .coachmark-title {
+      display: block;
+      margin-bottom: 5px;
+      font-family: 'Playfair Display', serif;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff7df;
+    }
+    .coachmark-text { display: block; color: rgba(244,241,235,0.88); }
+    .coachmark-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(244,241,235,0.12);
+    }
+    .coachmark-actions { display: flex; gap: 6px; align-items: center; }
+    .coachmark-hint {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.54rem;
+      color: rgba(244,241,235,0.52);
+      line-height: 1.35;
+    }
+    .coachmark-btn {
+      padding: 5px 9px;
+      border-radius: 5px;
+      border: 1px solid rgba(244,241,235,0.18);
+      background: transparent;
+      color: rgba(244,241,235,0.76);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.52rem;
+      cursor: pointer;
+    }
+    .coachmark-btn:hover { border-color: var(--gold-light); color: var(--gold-light); }
+    .coachmark-btn.primary {
+      background: var(--gold-light);
+      border-color: var(--gold-light);
+      color: var(--ink);
+      font-weight: 600;
+    }
     .coachmark-dock {
       position: fixed;
       top: 58px;
@@ -346,6 +399,7 @@
     }
     .coachmark-dock .coachmark-kicker { color: var(--gold-light); }
     @media (max-width: 760px) {
+      .coachmark-ring { display: none; }
       .coachmark {
         left: 14px !important;
         right: 14px;
@@ -1905,6 +1959,377 @@
       window.runGoldenPathDemo();
     });
   }
+
+  // GovAgentic-style walkthrough controller for TrustLayer. This final binding
+  // uses the original app functions and advances only after user clicks.
+  const TL_WALKTHROUGH_TIMEOUT_MS = 5000;
+  const TL_WALKTHROUGH_STEPS = {
+    vendor: {
+      order: 'Step 1 of 5',
+      label: '1 / 5 - Select high-risk vendor',
+      title: 'Select the high-risk Tier 1 vendor',
+      selector: '#card-V-2004',
+      placement: 'right',
+      actionHint: 'Click the highlighted vendor card.',
+      text: 'Start here: selecting a high-risk Tier 1 vendor gives the control layer something meaningful to evaluate.'
+    },
+    restrictedAction: {
+      order: 'Step 2 of 5',
+      label: '2 / 5 - Send restricted action',
+      title: 'Send the restricted action',
+      selector: '#sendBtn',
+      placement: 'top',
+      actionHint: 'Click Send.',
+      text: 'The AI attempts a restricted action, but the policy layer evaluates the request before any action is taken.'
+    },
+    escalation: {
+      order: 'Step 3 of 5',
+      label: '3 / 5 - Escalate blocked action',
+      title: 'Use the controlled escalation path',
+      selector: '.blocked-btn-escalate:not([disabled])',
+      placement: 'left',
+      actionHint: 'Click Escalate to Risk Review.',
+      text: 'The action is blocked, but the workflow provides a controlled escalation path for human review.'
+    },
+    approval: {
+      order: 'Step 4 of 5',
+      label: '4 / 5 - Simulate approval',
+      title: 'Approve through governance review',
+      selector: '.escalation-sim-btn',
+      placement: 'left',
+      actionHint: 'Click Simulate: Approval Granted.',
+      text: 'Approval is simulated for demo purposes, preserving the audit trail and decision context.'
+    },
+    auditTab: {
+      order: 'Step 5 of 5',
+      label: '5 / 5 - Open audit evidence',
+      title: 'Open the audit evidence area',
+      selector: '#tab-audit',
+      placement: 'left',
+      actionHint: 'Click Audit Evidence.',
+      text: 'The session produces traceable audit evidence: tool calls, policy decisions, escalation, and approval history.'
+    },
+    auditRecord: {
+      order: 'Step 5 of 5',
+      label: '5 / 5 - Generate audit record',
+      title: 'Generate the formal audit record',
+      selector: '#generateAuditRecordBtn',
+      placement: 'left',
+      actionHint: 'Click Generate Audit Record.',
+      text: 'The session produces traceable audit evidence: tool calls, policy decisions, escalation, and approval history.'
+    },
+    done: {
+      order: 'Complete',
+      label: 'Complete - Audit record generated',
+      title: 'Walkthrough complete',
+      selector: '#generateAuditRecordBtn',
+      placement: 'left',
+      actionHint: '',
+      text: 'Done. The guided demo produced traceable audit evidence for the session.'
+    }
+  };
+  const _tlOriginals = {
+    selectVendor: _demoOriginals.selectVendor,
+    sendQuestion: _demoOriginals.sendQuestion,
+    handleEscalation: _demoOriginals.handleEscalation,
+    simulateApproval: _demoOriginals.simulateApproval,
+    switchTab: _demoOriginals.switchTab,
+    generateAndShowAuditRecord: _demoOriginals.generateAndShowAuditRecord
+  };
+  let _tlWalkthrough = { active: false, step: null };
+
+  function _tlSetStepLabel(text) {
+    const el = document.getElementById('demoStepLabel');
+    if (el) el.textContent = text || '';
+  }
+
+  function _tlSetStartButton(text) {
+    const btn = document.getElementById('demoBtnStart');
+    if (btn) btn.textContent = text;
+  }
+
+  function _tlTarget(selector) {
+    return selector ? document.querySelector(selector) : null;
+  }
+
+  function _tlCoachmarkHtml(step) {
+    const hint = step.actionHint ? `<span class="coachmark-hint">${esc(step.actionHint)}</span>` : '<span></span>';
+    const done = step.done ? '<button class="coachmark-btn primary" onclick="endGuidedDemo()">Done</button>' : '';
+    return `
+      <span class="coachmark-kicker">${esc(step.order || 'Guided demo')}</span>
+      <span class="coachmark-title">${esc(step.title || 'Guided demo')}</span>
+      <span class="coachmark-text">${esc(step.text || '')}</span>
+      <div class="coachmark-footer">
+        ${hint}
+        <span class="coachmark-actions">
+          <button class="coachmark-btn" onclick="endGuidedDemo()">Exit</button>
+          ${done}
+        </span>
+      </div>`;
+  }
+
+  function _tlUpdateRing(target) {
+    document.getElementById('demoCoachmarkRing')?.remove();
+    if (!target || window.innerWidth <= 760) return;
+    const r = target.getBoundingClientRect();
+    const ring = document.createElement('div');
+    ring.id = 'demoCoachmarkRing';
+    ring.className = 'coachmark-ring';
+    ring.style.top = Math.max(r.top - 5, 4) + 'px';
+    ring.style.left = Math.max(r.left - 5, 4) + 'px';
+    ring.style.width = Math.min(r.width + 10, window.innerWidth - 8) + 'px';
+    ring.style.height = Math.min(r.height + 10, window.innerHeight - 8) + 'px';
+    document.body.appendChild(ring);
+  }
+
+  window.clearCoachmark = function() {
+    document.getElementById('demoCoachmark')?.remove();
+    document.getElementById('demoCoachmarkDock')?.remove();
+    document.getElementById('demoCoachmarkRing')?.remove();
+    document.querySelectorAll('.demo-coachmark-target').forEach(el => el.classList.remove('demo-coachmark-target'));
+    window.removeEventListener('resize', positionCoachmarkNearElement);
+  };
+
+  window.positionCoachmarkNearElement = function() {
+    const bubble = document.getElementById('demoCoachmark');
+    if (!bubble) return;
+    const target = _tlTarget(bubble.dataset.targetSelector);
+    const placement = bubble.dataset.preferredPlacement || 'right';
+
+    if (!target) {
+      bubble.dataset.placement = 'default';
+      bubble.style.left = '50%';
+      bubble.style.top = '82px';
+      bubble.style.transform = 'translateX(-50%)';
+      _tlUpdateRing(null);
+      return;
+    }
+
+    target.classList.add('demo-coachmark-target');
+    _tlUpdateRing(target);
+    const rect = target.getBoundingClientRect();
+    const gap = 16;
+    const margin = 12;
+    const width = bubble.offsetWidth || 340;
+    const height = bubble.offsetHeight || 150;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let nextPlacement = placement;
+    let left;
+    let top;
+
+    if (placement === 'left') {
+      left = rect.left - width - gap;
+      top = rect.top + rect.height / 2 - height / 2;
+      if (left < margin) nextPlacement = 'right';
+    }
+    if (nextPlacement === 'right') {
+      left = rect.right + gap;
+      top = rect.top + rect.height / 2 - height / 2;
+      if (left + width > vw - margin) nextPlacement = 'bottom';
+    }
+    if (nextPlacement === 'bottom') {
+      left = rect.left + rect.width / 2 - width / 2;
+      top = rect.bottom + gap;
+      if (top + height > vh - margin) nextPlacement = 'top';
+    }
+    if (nextPlacement === 'top') {
+      left = rect.left + rect.width / 2 - width / 2;
+      top = rect.top - height - gap;
+      if (top < margin) {
+        top = margin;
+        left = Math.min(Math.max(rect.right + gap, margin), vw - width - margin);
+        nextPlacement = 'right';
+      }
+    }
+
+    bubble.dataset.placement = nextPlacement;
+    bubble.style.transform = 'none';
+    bubble.style.left = Math.min(Math.max(left, margin), vw - width - margin) + 'px';
+    bubble.style.top = Math.min(Math.max(top, margin), vh - height - margin) + 'px';
+  };
+  const _tlPositionCoachmark = window.positionCoachmarkNearElement;
+
+  window.showCoachmark = function(targetSelector, text, options = {}) {
+    clearCoachmark();
+    window.removeEventListener('resize', _tlPositionCoachmark);
+    const step = {
+      order: options.label || options.order || 'Guided demo',
+      title: options.title || 'Guided demo',
+      text,
+      actionHint: options.actionHint || '',
+      done: Boolean(options.done),
+      selector: targetSelector || '',
+      placement: options.placement || 'right'
+    };
+
+    const bubble = document.createElement('div');
+    bubble.id = 'demoCoachmark';
+    bubble.className = 'coachmark';
+    bubble.setAttribute('role', 'dialog');
+    bubble.setAttribute('aria-live', 'polite');
+    bubble.dataset.targetSelector = targetSelector || '';
+    bubble.dataset.preferredPlacement = options.placement || 'right';
+    bubble.innerHTML = _tlCoachmarkHtml(step);
+    document.body.appendChild(bubble);
+
+    const dock = document.createElement('div');
+    dock.id = 'demoCoachmarkDock';
+    dock.className = 'coachmark-dock';
+    dock.setAttribute('role', 'status');
+    dock.setAttribute('aria-live', 'polite');
+    dock.innerHTML = `<span class="coachmark-kicker">${esc(step.order)}</span><span class="coachmark-text">${esc(text)}</span>`;
+    document.body.appendChild(dock);
+
+    _tlTarget(targetSelector)?.scrollIntoView({ block: 'center', inline: 'nearest' });
+    _tlPositionCoachmark();
+    requestAnimationFrame(_tlPositionCoachmark);
+    window.addEventListener('resize', _tlPositionCoachmark);
+  };
+
+  function _tlShowStep(key) {
+    const step = TL_WALKTHROUGH_STEPS[key];
+    if (!step) return;
+    _tlWalkthrough.step = key;
+    _tlSetStepLabel(step.label);
+    showCoachmark(step.selector, step.text, {
+      label: step.order,
+      title: step.title,
+      actionHint: step.actionHint,
+      placement: step.placement
+    });
+  }
+
+  function _tlWaitFor(selector, callback, timeout = 6000) {
+    const started = Date.now();
+    const tick = () => {
+      if (!_tlWalkthrough.active) return;
+      if (_tlTarget(selector)) callback();
+      else if (Date.now() - started < timeout) setTimeout(tick, 150);
+      else showCoachmark(null, 'The walkthrough is waiting for a control that did not appear. You can exit and restart the demo.', {
+        label: 'Guided demo',
+        title: 'Step unavailable',
+        actionHint: 'Exit and restart if needed.'
+      });
+    };
+    tick();
+  }
+
+  window.endGuidedDemo = function() {
+    _tlWalkthrough = { active: false, step: null };
+    window.removeEventListener('resize', _tlPositionCoachmark);
+    clearCoachmark();
+    _tlSetStepLabel('');
+    _tlSetStartButton('Start Demo');
+  };
+
+  window.runGoldenPathDemo = async function() {
+    console.log('[TrustLayer demo] walkthrough start');
+    clearCoachmark();
+    _tlWalkthrough = { active: true, step: 'starting' };
+    _tlSetStartButton('Restart Demo');
+    _tlSetStepLabel('Starting guided walkthrough');
+    showCoachmark('#demoBtnStart', 'Guided demo started. TrustLayer will now walk through vendor selection, policy blocking, escalation, approval, and audit evidence.', {
+      label: 'Guided demo',
+      title: 'Start the TrustLayer walkthrough',
+      actionHint: 'Preparing the vendor registry.',
+      placement: 'bottom'
+    });
+
+    try {
+      if (_initPromise) {
+        await Promise.race([
+          _initPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Demo initialization timed out')), TL_WALKTHROUGH_TIMEOUT_MS))
+        ]);
+      }
+      if (_tlWalkthrough.active) _tlShowStep('vendor');
+    } catch (err) {
+      console.error('[TrustLayer demo] failed', err);
+      _tlWalkthrough.active = false;
+      _tlSetStartButton('Start Demo');
+      showCoachmark(null, 'The guided demo could not start. Open the browser console for details.', {
+        label: 'Demo error',
+        title: 'Walkthrough unavailable',
+        actionHint: 'Exit and try again.'
+      });
+    }
+  };
+
+  window.selectVendor = function(id) {
+    const result = _tlOriginals.selectVendor(id);
+    if (_tlWalkthrough.active && _tlWalkthrough.step === 'vendor' && id === 'V-2004') {
+      const input = document.getElementById('questionInput');
+      if (input) {
+        input.value = 'Approve this vendor';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      _tlShowStep('restrictedAction');
+    }
+    return result;
+  };
+
+  window.sendQuestion = async function() {
+    const wasStep = _tlWalkthrough.active && _tlWalkthrough.step === 'restrictedAction';
+    if (wasStep) {
+      _tlSetStepLabel('2 / 5 - Evaluating policy');
+      showCoachmark('#questionInput', 'The policy layer is evaluating this restricted action now. The walkthrough will pause again when the blocked action appears.', {
+        label: 'Step 2 of 5',
+        title: 'Policy evaluation in progress',
+        actionHint: 'Wait for the blocked action card.',
+        placement: 'top'
+      });
+    }
+    const result = await _tlOriginals.sendQuestion();
+    if (wasStep && _tlWalkthrough.active) _tlWaitFor(TL_WALKTHROUGH_STEPS.escalation.selector, () => _tlShowStep('escalation'));
+    return result;
+  };
+
+  window.handleEscalation = function(eventId, action, policyId, controlId) {
+    const wasStep = _tlWalkthrough.active && _tlWalkthrough.step === 'escalation';
+    const result = _tlOriginals.handleEscalation(eventId, action, policyId, controlId);
+    if (wasStep) {
+      _tlWalkthrough.step = 'routingApproval';
+      _tlSetStepLabel('4 / 5 - Waiting for review control');
+      showCoachmark('.blocked-card', 'The escalation is routing to governance review. When the approval control appears, the walkthrough will ask you to click it.', {
+        label: 'Step 4 of 5',
+        title: 'Escalation routed',
+        actionHint: 'Wait for the approval control.',
+        placement: 'left'
+      });
+      _tlWaitFor(TL_WALKTHROUGH_STEPS.approval.selector, () => _tlShowStep('approval'), 8000);
+    }
+    return result;
+  };
+
+  window.simulateApproval = function(eventId, refId, action, policyId) {
+    const wasStep = _tlWalkthrough.active && _tlWalkthrough.step === 'approval';
+    const result = _tlOriginals.simulateApproval(eventId, refId, action, policyId);
+    if (wasStep) _tlShowStep('auditTab');
+    return result;
+  };
+
+  window.switchTab = function(tab) {
+    const result = _tlOriginals.switchTab(tab);
+    if (_tlWalkthrough.active && _tlWalkthrough.step === 'auditTab' && tab === 'audit') _tlShowStep('auditRecord');
+    return result;
+  };
+
+  window.generateAndShowAuditRecord = function() {
+    const wasStep = _tlWalkthrough.active && _tlWalkthrough.step === 'auditRecord';
+    const result = _tlOriginals.generateAndShowAuditRecord();
+    if (wasStep) {
+      _tlWalkthrough.step = 'done';
+      _tlSetStepLabel(TL_WALKTHROUGH_STEPS.done.label);
+      showCoachmark(TL_WALKTHROUGH_STEPS.done.selector, TL_WALKTHROUGH_STEPS.done.text, {
+        label: TL_WALKTHROUGH_STEPS.done.order,
+        title: TL_WALKTHROUGH_STEPS.done.title,
+        done: true,
+        placement: TL_WALKTHROUGH_STEPS.done.placement
+      });
+    }
+    return result;
+  };
 
   window._onAuditLog = () => renderAuditLog();
   _initPromise = init();
