@@ -47,6 +47,7 @@
     .vendor-card { background: var(--paper); border: 1px solid var(--border-2); border-radius: 8px; padding: 11px 13px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.2s; }
     .vendor-card:hover { border-color: var(--border); }
     .vendor-card.selected { border-color: var(--teal); background: var(--teal-bg); }
+    .demo-coachmark-target { position: relative; z-index: 3; box-shadow: 0 0 0 3px rgba(201,168,76,0.34), 0 10px 26px rgba(15,25,35,0.18); }
     .vendor-name { font-family: 'Playfair Display', serif; font-size: 0.85rem; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
     .vendor-id { font-family: 'IBM Plex Mono', monospace; font-size: 0.55rem; color: var(--mist); margin-bottom: 5px; }
     .vendor-meta { font-size: 0.7rem; color: var(--slate); line-height: 1.45; margin-bottom: 6px; }
@@ -519,6 +520,7 @@
   let _selectedVendor = null, _vendors = [], _isLoading = false;
   let _auditCount = 0, _traceCount = 0, _decisionTrace = null;
   let _policyAuditLog = [];
+  let _initPromise = null;
 
   // ── TAB SWITCHING ─────────────────────────────────────
   // Note: trace reset removed from risk tab — only resets on vendor change
@@ -1553,6 +1555,7 @@
 
   function clearCoachmark() {
     document.getElementById('demoCoachmark')?.remove();
+    document.querySelectorAll('.demo-coachmark-target').forEach(el => el.classList.remove('demo-coachmark-target'));
     window.removeEventListener('resize', positionCoachmarkNearElement);
   }
 
@@ -1566,11 +1569,13 @@
 
     if (!target) {
       bubble.dataset.placement = 'default';
-      bubble.style.left = '18px';
+      bubble.style.left = '50%';
       bubble.style.top = '82px';
+      bubble.style.transform = 'translateX(-50%)';
       return;
     }
 
+    target.classList.add('demo-coachmark-target');
     const rect = target.getBoundingClientRect();
     const gap = 14;
     const margin = 14;
@@ -1608,6 +1613,7 @@
     }
 
     bubble.dataset.placement = nextPlacement;
+    bubble.style.transform = 'none';
     bubble.style.left = Math.min(Math.max(left, margin), vw - width - margin) + 'px';
     bubble.style.top = Math.min(Math.max(top, margin), vh - height - margin) + 'px';
   }
@@ -1625,7 +1631,10 @@
     bubble.innerHTML = `<span class="coachmark-kicker">${esc(options.label || 'Guided demo')}</span><span class="coachmark-text">${esc(text)}</span>`;
     document.body.appendChild(bubble);
 
+    const target = targetSelector ? document.querySelector(targetSelector) : null;
+    target?.scrollIntoView({ block: 'center', inline: 'nearest' });
     positionCoachmarkNearElement();
+    requestAnimationFrame(positionCoachmarkNearElement);
     window.addEventListener('resize', positionCoachmarkNearElement);
   }
 
@@ -1639,9 +1648,11 @@
 
     // 1 — Select GlobalPay Processing (expired contract, no audit rights, HIGH risk)
     _setDemoStep('1 / 5 · Selecting high-risk vendor…');
+    showCoachmark('#demoBtnStart', 'Starting the guided demo. First, TrustLayer selects a high-risk vendor so the control layer has something meaningful to evaluate.', { placement: 'top' });
+    if (_initPromise) await _initPromise;
     selectVendor('V-2004');
     showCoachmark('#card-V-2004', 'Start here: selecting a high-risk Tier 1 vendor gives the control layer something meaningful to evaluate.', { placement: 'right' });
-    await _sleep(1400);
+    await _sleep(2400);
 
     // 2 — Attempt to approve the vendor → triggers MODIFY-001 block
     _setDemoStep('2 / 5 · Attempting restricted action…');
@@ -1679,7 +1690,7 @@
   };
 
   window._onAuditLog = () => renderAuditLog();
-  init();
+  _initPromise = init();
   renderPolicyEngineTab([], []);
 </script>
 </body>
