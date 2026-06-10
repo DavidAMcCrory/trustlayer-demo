@@ -272,6 +272,21 @@
     .demo-btn:hover { background: rgba(201,168,76,0.22); border-color: rgba(201,168,76,0.5); }
     .demo-btn:disabled { opacity: 0.45; cursor: not-allowed; }
     .demo-step-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.44rem; color: rgba(201,168,76,0.65); transition: opacity 0.3s; }
+    #demoBtnStart {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 10001;
+      padding: 8px 16px;
+      background: var(--gold-light);
+      border-color: var(--gold-light);
+      color: var(--ink);
+      font-size: 0.62rem;
+      font-weight: 600;
+      box-shadow: 0 0 0 2px rgba(201,168,76,0.18), 0 8px 22px rgba(0,0,0,0.22);
+    }
+    #demoBtnStart:hover { background: #d7b957; color: var(--ink); }
+    #demoBtnStart:disabled { opacity: 0.7; }
 
     /* ── TOPBAR POLICY INDICATOR ── */
     .coachmark {
@@ -342,6 +357,7 @@
       }
       .coachmark::before { display: none; }
       .coachmark-dock { top: 54px; font-size: 0.82rem; }
+      #demoBtnStart { right: 12px; bottom: 12px; }
     }
 
     .topbar-policy { display: flex; align-items: center; gap: 5px; }
@@ -1744,6 +1760,141 @@
     } finally {
       if (btn) { btn.textContent = '↺ Restart'; btn.disabled = false; }
     }
+  };
+
+  const _demoOriginals = {
+    selectVendor: window.selectVendor,
+    sendQuestion: window.sendQuestion,
+    handleEscalation: window.handleEscalation,
+    simulateApproval: window.simulateApproval,
+    switchTab: window.switchTab,
+    generateAndShowAuditRecord: window.generateAndShowAuditRecord
+  };
+  let _guidedDemo = { active: false, step: 0 };
+
+  function _setGuidedDemoStep(step, label, selector, text, options = {}) {
+    _guidedDemo.step = step;
+    _setDemoStep(label);
+    showCoachmark(selector, text, { label: 'Guided demo', placement: options.placement || 'right' });
+  }
+
+  window.runGoldenPathDemo = async function() {
+    const btn = document.getElementById('demoBtnStart');
+    console.log('[TrustLayer demo] click-through start');
+    clearCoachmark();
+    _guidedDemo = { active: true, step: 1 };
+    if (btn) btn.textContent = 'Guided Mode Active';
+
+    try {
+      if (_initPromise) {
+        await Promise.race([
+          _initPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Demo initialization timed out')), 5000))
+        ]);
+      }
+      _setGuidedDemoStep(
+        1,
+        '1 / 5 · Click the high-risk vendor',
+        '#card-V-2004',
+        'Start here: click GlobalPay Processing, a high-risk Tier 1 vendor, so the control layer has something meaningful to evaluate.',
+        { placement: 'right' }
+      );
+    } catch (err) {
+      console.error('[TrustLayer demo] failed', err);
+      _guidedDemo.active = false;
+      showCoachmark(null, 'The guided demo could not start. Open the browser console for details.', { label: 'Demo error' });
+      if (btn) btn.textContent = '↺ Restart';
+    }
+  };
+
+  window.selectVendor = function(id) {
+    const result = _demoOriginals.selectVendor(id);
+    if (_guidedDemo.active && _guidedDemo.step === 1 && id === 'V-2004') {
+      const input = document.getElementById('questionInput');
+      if (input) {
+        input.value = 'Approve this vendor';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      _setGuidedDemoStep(
+        2,
+        '2 / 5 · Send the restricted action',
+        '#sendBtn',
+        'The AI will attempt a restricted action. Click Send to let the policy layer evaluate the request before any action is taken.',
+        { placement: 'top' }
+      );
+    }
+    return result;
+  };
+
+  window.sendQuestion = async function() {
+    const wasDemoStep2 = _guidedDemo.active && _guidedDemo.step === 2;
+    if (wasDemoStep2) {
+      _setDemoStep('2 / 5 · Evaluating restricted action');
+      showCoachmark('#questionInput', 'The policy layer is evaluating this restricted action now. The workflow will pause again when the blocked action appears.', { label: 'Guided demo', placement: 'top' });
+    }
+    const result = await _demoOriginals.sendQuestion();
+    if (wasDemoStep2) {
+      _setGuidedDemoStep(
+        3,
+        '3 / 5 · Click escalation',
+        '.blocked-btn-escalate:not([disabled])',
+        'The action is blocked. Click Escalate to Risk Review to use the controlled human-review path.',
+        { placement: 'left' }
+      );
+    }
+    return result;
+  };
+
+  window.handleEscalation = function(eventId, action, policyId, controlId) {
+    const wasDemoStep3 = _guidedDemo.active && _guidedDemo.step === 3;
+    const result = _demoOriginals.handleEscalation(eventId, action, policyId, controlId);
+    if (wasDemoStep3) {
+      _guidedDemo.step = 4;
+      _setDemoStep('4 / 5 · Wait for review control');
+      showCoachmark('.blocked-card', 'The escalation is routing. When the demo approval control appears, click it to simulate human review.', { label: 'Guided demo', placement: 'left' });
+      setTimeout(() => {
+        if (_guidedDemo.active && _guidedDemo.step === 4) {
+          showCoachmark('.escalation-sim-btn', 'Click Simulate: Approval Granted to preserve the decision context in the audit trail.', { label: 'Guided demo', placement: 'left' });
+        }
+      }, 1900);
+    }
+    return result;
+  };
+
+  window.simulateApproval = function(eventId, refId, action, policyId) {
+    const wasDemoStep4 = _guidedDemo.active && _guidedDemo.step === 4;
+    const result = _demoOriginals.simulateApproval(eventId, refId, action, policyId);
+    if (wasDemoStep4) {
+      _setGuidedDemoStep(
+        5,
+        '5 / 5 · Open Audit Evidence',
+        '#tab-audit',
+        'Approval is logged. Click Audit Evidence to produce a traceable record of tool calls, policy decisions, escalation, and approval history.',
+        { placement: 'left' }
+      );
+    }
+    return result;
+  };
+
+  window.switchTab = function(tab) {
+    const result = _demoOriginals.switchTab(tab);
+    if (_guidedDemo.active && _guidedDemo.step === 5 && tab === 'audit') {
+      showCoachmark('#generateAuditRecordBtn', 'Now click Generate Audit Record to create the final evidence package.', { label: 'Guided demo', placement: 'left' });
+    }
+    return result;
+  };
+
+  window.generateAndShowAuditRecord = function() {
+    const result = _demoOriginals.generateAndShowAuditRecord();
+    if (_guidedDemo.active && _guidedDemo.step === 5) {
+      _setDemoStep('Complete · Audit record generated');
+      showCoachmark('#generateAuditRecordBtn', 'Done. The guided demo produced traceable audit evidence for the session.', { label: 'Guided demo', placement: 'left' });
+      _guidedDemo.active = false;
+      const btn = document.getElementById('demoBtnStart');
+      if (btn) btn.textContent = '↺ Restart';
+      setTimeout(clearCoachmark, 3500);
+    }
+    return result;
   };
 
   const demoBtnStart = document.getElementById('demoBtnStart');
