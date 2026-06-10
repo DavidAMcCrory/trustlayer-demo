@@ -1672,11 +1672,11 @@
   window.runGoldenPathDemo = async function() {
     const btn = document.getElementById('demoBtnStart');
     clearCoachmark();
+    showCoachmark('#demoBtnStart', 'Starting the guided demo. First, TrustLayer selects a high-risk vendor so the control layer has something meaningful to evaluate.', { placement: 'top' });
     if (btn) { btn.disabled = true; btn.textContent = 'Running…'; }
 
     // 1 — Select GlobalPay Processing (expired contract, no audit rights, HIGH risk)
     _setDemoStep('1 / 5 · Selecting high-risk vendor…');
-    showCoachmark('#demoBtnStart', 'Starting the guided demo. First, TrustLayer selects a high-risk vendor so the control layer has something meaningful to evaluate.', { placement: 'top' });
     if (_initPromise) await _initPromise;
     selectVendor('V-2004');
     showCoachmark('#card-V-2004', 'Start here: selecting a high-risk Tier 1 vendor gives the control layer something meaningful to evaluate.', { placement: 'right' });
@@ -1716,6 +1716,15 @@
 
     if (btn) { btn.textContent = '↺ Restart'; btn.disabled = false; }
   };
+
+  const demoBtnStart = document.getElementById('demoBtnStart');
+  if (demoBtnStart) {
+    demoBtnStart.onclick = null;
+    demoBtnStart.addEventListener('click', event => {
+      event.preventDefault();
+      window.runGoldenPathDemo();
+    });
+  }
 
   window._onAuditLog = () => renderAuditLog();
   _initPromise = init();
