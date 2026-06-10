@@ -273,6 +273,57 @@
     .demo-step-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.44rem; color: rgba(201,168,76,0.65); transition: opacity 0.3s; }
 
     /* ── TOPBAR POLICY INDICATOR ── */
+    .coachmark {
+      position: fixed;
+      z-index: 9999;
+      width: min(320px, calc(100vw - 28px));
+      padding: 12px 14px;
+      border-radius: 8px;
+      background: #fffaf0;
+      border: 1px solid rgba(138,109,47,0.35);
+      box-shadow: 0 14px 40px rgba(15,25,35,0.22);
+      color: var(--ink);
+      font-size: 0.78rem;
+      line-height: 1.55;
+      pointer-events: none;
+    }
+    .coachmark::before {
+      content: '';
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      background: #fffaf0;
+      border-left: 1px solid rgba(138,109,47,0.35);
+      border-top: 1px solid rgba(138,109,47,0.35);
+      transform: rotate(45deg);
+    }
+    .coachmark[data-placement="right"]::before { left: -7px; top: 18px; }
+    .coachmark[data-placement="left"]::before { right: -7px; top: 18px; transform: rotate(225deg); }
+    .coachmark[data-placement="bottom"]::before { top: -7px; left: 22px; }
+    .coachmark[data-placement="top"]::before { bottom: -7px; left: 22px; transform: rotate(225deg); }
+    .coachmark[data-placement="default"]::before { display: none; }
+    .coachmark-kicker {
+      display: block;
+      margin-bottom: 4px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.48rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--gold);
+      font-weight: 500;
+    }
+    .coachmark-text { display: block; }
+    @media (max-width: 760px) {
+      .coachmark {
+        left: 14px !important;
+        right: 14px;
+        top: auto !important;
+        bottom: 52px !important;
+        width: auto;
+      }
+      .coachmark::before { display: none; }
+    }
+
     .topbar-policy { display: flex; align-items: center; gap: 5px; }
     .topbar-policy-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--gold-light); }
     .topbar-policy-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.48rem; color: rgba(201,168,76,0.8); letter-spacing: 0.05em; }
@@ -1109,7 +1160,12 @@
         _setDemoStep('Complete · Audit record generated');
         setTimeout(() => {
           switchTab('audit');
-          setTimeout(() => window.generateAndShowAuditRecord(), 700);
+          showCoachmark('#generateAuditRecordBtn', 'The session produces traceable audit evidence: tool calls, policy decisions, escalation, and approval history.', { placement: 'left' });
+          setTimeout(() => {
+            window.generateAndShowAuditRecord();
+            showCoachmark('#generateAuditRecordBtn', 'The session produces traceable audit evidence: tool calls, policy decisions, escalation, and approval history.', { placement: 'left' });
+            setTimeout(clearCoachmark, 3500);
+          }, 700);
         }, 1200);
       }
     } catch(err) { typing.remove(); appendMsg('assistant', `Error: ${err.message}`); }
@@ -1495,37 +1551,125 @@
     if (el) el.textContent = text;
   }
 
+  function clearCoachmark() {
+    document.getElementById('demoCoachmark')?.remove();
+    window.removeEventListener('resize', positionCoachmarkNearElement);
+  }
+
+  function positionCoachmarkNearElement() {
+    const bubble = document.getElementById('demoCoachmark');
+    if (!bubble) return;
+
+    const selector = bubble.dataset.targetSelector;
+    const placement = bubble.dataset.preferredPlacement || 'right';
+    const target = selector ? document.querySelector(selector) : null;
+
+    if (!target) {
+      bubble.dataset.placement = 'default';
+      bubble.style.left = '18px';
+      bubble.style.top = '82px';
+      return;
+    }
+
+    const rect = target.getBoundingClientRect();
+    const gap = 14;
+    const margin = 14;
+    const width = bubble.offsetWidth || 320;
+    const height = bubble.offsetHeight || 110;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let nextPlacement = placement;
+    let left;
+    let top;
+
+    if (placement === 'left') {
+      left = rect.left - width - gap;
+      top = rect.top + Math.min(18, Math.max(0, rect.height / 3));
+      if (left < margin) nextPlacement = 'right';
+    }
+    if (nextPlacement === 'right') {
+      left = rect.right + gap;
+      top = rect.top + Math.min(18, Math.max(0, rect.height / 3));
+      if (left + width > vw - margin) nextPlacement = 'bottom';
+    }
+    if (nextPlacement === 'bottom') {
+      left = rect.left;
+      top = rect.bottom + gap;
+      if (top + height > vh - margin) nextPlacement = 'top';
+    }
+    if (nextPlacement === 'top') {
+      left = rect.left;
+      top = rect.top - height - gap;
+      if (top < margin) {
+        top = margin;
+        left = Math.min(Math.max(rect.right + gap, margin), vw - width - margin);
+        nextPlacement = 'right';
+      }
+    }
+
+    bubble.dataset.placement = nextPlacement;
+    bubble.style.left = Math.min(Math.max(left, margin), vw - width - margin) + 'px';
+    bubble.style.top = Math.min(Math.max(top, margin), vh - height - margin) + 'px';
+  }
+
+  function showCoachmark(targetSelector, text, options = {}) {
+    clearCoachmark();
+
+    const bubble = document.createElement('div');
+    bubble.id = 'demoCoachmark';
+    bubble.className = 'coachmark';
+    bubble.setAttribute('role', 'status');
+    bubble.setAttribute('aria-live', 'polite');
+    bubble.dataset.targetSelector = targetSelector || '';
+    bubble.dataset.preferredPlacement = options.placement || 'right';
+    bubble.innerHTML = `<span class="coachmark-kicker">${esc(options.label || 'Guided demo')}</span><span class="coachmark-text">${esc(text)}</span>`;
+    document.body.appendChild(bubble);
+
+    positionCoachmarkNearElement();
+    window.addEventListener('resize', positionCoachmarkNearElement);
+  }
+
+  window.clearCoachmark = clearCoachmark;
+  window.showCoachmark = showCoachmark;
+
   window.runGoldenPathDemo = async function() {
     const btn = document.getElementById('demoBtnStart');
+    clearCoachmark();
     if (btn) { btn.disabled = true; btn.textContent = 'Running…'; }
 
     // 1 — Select GlobalPay Processing (expired contract, no audit rights, HIGH risk)
     _setDemoStep('1 / 5 · Selecting high-risk vendor…');
     selectVendor('V-2004');
+    showCoachmark('#card-V-2004', 'Start here: selecting a high-risk Tier 1 vendor gives the control layer something meaningful to evaluate.', { placement: 'right' });
     await _sleep(1400);
 
     // 2 — Attempt to approve the vendor → triggers MODIFY-001 block
     _setDemoStep('2 / 5 · Attempting restricted action…');
     const input = document.getElementById('questionInput');
     input.value = 'Approve this vendor';
+    showCoachmark('#questionInput', 'The AI attempts a restricted action, but the policy layer evaluates the request before any action is taken.', { placement: 'top' });
     await _sleep(500);
     await window.sendQuestion();   // fast — policy block fires before any API call
+    showCoachmark('.blocked-card', 'The AI attempts a restricted action, but the policy layer evaluates the request before any action is taken.', { placement: 'left' });
     await _sleep(2200);
 
     // 3 — Escalate to Risk Officer
     _setDemoStep('3 / 5 · Escalating to Risk Officer…');
     const escBtn = document.querySelector('.blocked-btn-escalate:not([disabled])');
+    showCoachmark('.blocked-btn-escalate:not([disabled])', 'The action is blocked, but the workflow provides a controlled escalation path for human review.', { placement: 'left' });
     if (escBtn) escBtn.click();
     await _sleep(3000);            // handleEscalation has a 1800 ms internal delay
 
     // 4 — Simulate governance approval
     _setDemoStep('4 / 5 · Governance round-trip: approval granted…');
     const simBtn = document.querySelector('.escalation-sim-btn');
+    showCoachmark('.escalation-card', 'Approval is simulated for demo purposes, preserving the audit trail and decision context.', { placement: 'left' });
     if (simBtn) simBtn.click();
     await _sleep(1600);
 
     // 5 — Run full risk assessment; auto-generate audit record on completion
     _setDemoStep('5 / 5 · Running full risk assessment…');
+    showCoachmark('#tab-audit, #generateAuditRecordBtn', 'The session produces traceable audit evidence: tool calls, policy decisions, escalation, and approval history.', { placement: 'left' });
     input.value = 'Run a full risk assessment and highlight critical findings';
     await _sleep(400);
     window._demoPendingAudit = true;
